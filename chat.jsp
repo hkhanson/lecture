@@ -1,6 +1,7 @@
 <%@ page language="java" contentType="text/html; charset=UTF-8" pageEncoding="UTF-8"%>
 <%@ page import="java.util.*" %>
 <%@ page import="javax.servlet.http.HttpServletRequest" %>
+<%@ page import="java.text.SimpleDateFormat" %>
 <%!
 // 获取用户真实 IP 的函数
 String getUserIp(HttpServletRequest request) {
@@ -21,6 +22,12 @@ String getUserIp(HttpServletRequest request) {
         ip = request.getRemoteAddr();
     }
     return ip;
+}
+
+// 格式化日期的函数
+String formatDate(Date date) {
+    SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd-HH:mm:ss");
+    return sdf.format(date);
 }
 %>
 
@@ -44,7 +51,7 @@ String newMessage = request.getParameter("message");
 if (newMessage != null && !newMessage.trim().isEmpty()) {
     try {
         String userIp = getUserIp(request);
-        String formattedMessage = String.format("[%s] %s: %s", new Date(), userIp, newMessage);
+        String formattedMessage = String.format("[%s] %s: %s", formatDate(new Date()), userIp, newMessage);
         messages.add(formattedMessage);
         application.setAttribute("chatMessages", messages);
     } catch (Exception e) {
@@ -137,7 +144,7 @@ if (newMessage != null && !newMessage.trim().isEmpty()) {
 <body>
     <div class="chat-container">
         <h1>简单聊天室</h1>
-        <p class="current-time">当前时间：<%= now %></p>
+        <p class="current-time">当前时间：<%= formatDate(now) %></p>
         
         <div class="chat-messages">
             <ul>
