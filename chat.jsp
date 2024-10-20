@@ -35,13 +35,13 @@ String getUserIp(HttpServletRequest request) {
 
 // 格式化日期的函数
 String formatDate(java.util.Date date) {
-    SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd");
+    SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd-HH:mm:ss");
     return sdf.format(date);
 }
 
 // 格式化时间的函数
 String formatTime(java.util.Date date) {
-    SimpleDateFormat sdf = new SimpleDateFormat("HHmmss");
+    SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss");
     return sdf.format(date);
 }
 
@@ -78,8 +78,8 @@ List<String> getAllMessages(Connection conn) throws SQLException {
     try (Statement stmt = conn.createStatement();
          ResultSet rs = stmt.executeQuery(sql)) {
         while (rs.next()) {
-            String formattedMessage = String.format("[%s-%s] %s: %s",
-                rs.getString("date"), rs.getString("time"),
+            String formattedMessage = String.format("[%s] %s: %s",
+                formatTime(rs.getString("time")),
                 rs.getString("ip"), rs.getString("message"));
             messages.add(formattedMessage);
         }
@@ -105,21 +105,11 @@ try {
     String newMessage = request.getParameter("message");
     if (newMessage != null && !newMessage.trim().isEmpty()) {
         String userIp = getUserIp(request);
-        String date = formatDate(now);
-        String time = formatTime(now);
-        saveMessage(conn, date, time, userIp, newMessage);
-    }
-    
-    messages = getAllMessages(conn);
-} catch(SQLException se) {
-    se.printStackTrace();
-} catch(Exception e) {
-    e.printStackTrace();
-} finally {
-    try {
-        if(conn != null) conn.close();
-    } catch(SQLException se) {
-        se.printStackTrace();
+        String formattedMessage = String.format("[%s] %s: %s", formatDate(new Date()), userIp, newMessage);
+        messages.add(formattedMessage);
+        application.setAttribute("chatMessages", messages);
+    } catch (Exception e) {
+        System.err.println("Error processing message: " + e.getMessage());
     }
 }
 %>
