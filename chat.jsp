@@ -29,6 +29,11 @@ String formatDate(Date date) {
     SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd-HH:mm:ss");
     return sdf.format(date);
 }
+// 格式化日期的函数
+String formatTime(Date date) {
+    SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss");
+    return sdf.format(date);
+}
 %>
 
 <%
@@ -51,7 +56,7 @@ String newMessage = request.getParameter("message");
 if (newMessage != null && !newMessage.trim().isEmpty()) {
     try {
         String userIp = getUserIp(request);
-        String formattedMessage = String.format("[%s] %s: %s", formatDate(new Date()), userIp, newMessage);
+        String formattedMessage = String.format("[%s] %s: %s", formatTime(new Date()), userIp, newMessage);
         messages.add(formattedMessage);
         application.setAttribute("chatMessages", messages);
     } catch (Exception e) {
