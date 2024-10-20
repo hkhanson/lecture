@@ -2,7 +2,16 @@
 <%@ page import="java.util.*" %>
 <%@ page import="javax.servlet.http.HttpServletRequest" %>
 <%@ page import="java.text.SimpleDateFormat" %>
+<%@ page import="java.sql.*" %>
+<%@ page import="java.util.Date" %>
+
 <%!
+// 数据库连接信息
+private static final String JDBC_DRIVER = "com.mysql.jdbc.Driver";
+private static final String DB_URL = "jdbc:mysql://172.18.0.1:3306/demo2?useUnicode=true&characterEncoding=utf8&createDatabaseIfNotExist=true";
+private static final String USER = "tomcatUser";
+private static final String PASS = "O12b.aZc!nUF7fd";
+
 // 获取用户真实 IP 的函数
 String getUserIp(HttpServletRequest request) {
     String ip = request.getHeader("X-Forwarded-For");
@@ -25,37 +34,92 @@ String getUserIp(HttpServletRequest request) {
 }
 
 // 格式化日期的函数
-String formatDate(Date date) {
-    SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd-HH:mm:ss");
+String formatDate(java.util.Date date) {
+    SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd");
     return sdf.format(date);
+}
+
+// 格式化时间的函数
+String formatTime(java.util.Date date) {
+    SimpleDateFormat sdf = new SimpleDateFormat("HHmmss");
+    return sdf.format(date);
+}
+
+// 创建数据库表的函数
+void createTableIfNotExists(Connection conn) throws SQLException {
+    String sql = "CREATE TABLE IF NOT EXISTS messages (" +
+                 "id INT AUTO_INCREMENT PRIMARY KEY," +
+                 "date VARCHAR(8)," +
+                 "time VARCHAR(6)," +
+                 "ip VARCHAR(15)," +
+                 "message TEXT" +
+                 ")";
+    try (Statement stmt = conn.createStatement()) {
+        stmt.execute(sql);
+    }
+}
+
+// 保存消息到数据库的函数
+void saveMessage(Connection conn, String date, String time, String ip, String message) throws SQLException {
+    String sql = "INSERT INTO messages (date, time, ip, message) VALUES (?, ?, ?, ?)";
+    try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+        pstmt.setString(1, date);
+        pstmt.setString(2, time);
+        pstmt.setString(3, ip);
+        pstmt.setString(4, message);
+        pstmt.executeUpdate();
+    }
+}
+
+// 从数据库读取所有消息的函数
+List<String> getAllMessages(Connection conn) throws SQLException {
+    List<String> messages = new ArrayList<>();
+    String sql = "SELECT date, time, ip, message FROM messages ORDER BY id ASC";
+    try (Statement stmt = conn.createStatement();
+         ResultSet rs = stmt.executeQuery(sql)) {
+        while (rs.next()) {
+            String formattedMessage = String.format("[%s-%s] %s: %s",
+                rs.getString("date"), rs.getString("time"),
+                rs.getString("ip"), rs.getString("message"));
+            messages.add(formattedMessage);
+        }
+    }
+    return messages;
 }
 %>
 
 <%
-// 调试信息
+request.setCharacterEncoding("UTF-8");
 System.out.println("JSP is executing!");
-Date now = new Date();
+java.util.Date now = new java.util.Date();
 
-// 设置请求编码为UTF-8
-request.setCharacterEncoding("UTF-8");   
+Connection conn = null;
+List<String> messages = new ArrayList<>();
 
-// 获取application对象中的消息列表，如果不存在则创建一个新的
-List<String> messages = (List<String>)application.getAttribute("chatMessages");
-if (messages == null) {
-    messages = new ArrayList<String>();
-    application.setAttribute("chatMessages", messages);
-}
-
-// 处理新消息
-String newMessage = request.getParameter("message");
-if (newMessage != null && !newMessage.trim().isEmpty()) {
-    try {
+try {
+    Class.forName(JDBC_DRIVER);
+    conn = DriverManager.getConnection(DB_URL, USER, PASS);
+    
+    createTableIfNotExists(conn);
+    
+    String newMessage = request.getParameter("message");
+    if (newMessage != null && !newMessage.trim().isEmpty()) {
         String userIp = getUserIp(request);
-        String formattedMessage = String.format("[%s] %s: %s", formatDate(new Date()), userIp, newMessage);
-        messages.add(formattedMessage);
-        application.setAttribute("chatMessages", messages);
-    } catch (Exception e) {
-        System.err.println("Error processing message: " + e.getMessage());
+        String date = formatDate(now);
+        String time = formatTime(now);
+        saveMessage(conn, date, time, userIp, newMessage);
+    }
+    
+    messages = getAllMessages(conn);
+} catch(SQLException se) {
+    se.printStackTrace();
+} catch(Exception e) {
+    e.printStackTrace();
+} finally {
+    try {
+        if(conn != null) conn.close();
+    } catch(SQLException se) {
+        se.printStackTrace();
     }
 }
 %>
@@ -144,7 +208,7 @@ if (newMessage != null && !newMessage.trim().isEmpty()) {
 <body>
     <div class="chat-container">
         <h1>简单聊天室</h1>
-        <p class="current-time">当前时间：<%= formatDate(now) %></p>
+        <p class="current-time">当前时间：<%= formatDate(now) %>-<%= formatTime(now) %></p>
         
         <div class="chat-messages">
             <ul>
