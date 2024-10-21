@@ -4,6 +4,7 @@
 <%@ page import="java.text.SimpleDateFormat" %>
 <%@ page import="java.sql.*" %>
 <%@ page import="java.util.Date" %>
+<%@ page import="java.text.ParseException" %>
 
 <%!
 // 数据库连接信息
@@ -35,7 +36,7 @@ String getUserIp(HttpServletRequest request) {
 
 // 格式化日期的函数
 String formatDate(java.util.Date date) {
-    SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd-HH:mm:ss");
+    SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd");
     return sdf.format(date);
 }
 
@@ -50,7 +51,7 @@ void createTableIfNotExists(Connection conn) throws SQLException {
     String sql = "CREATE TABLE IF NOT EXISTS messages (" +
                  "id INT AUTO_INCREMENT PRIMARY KEY," +
                  "date VARCHAR(8)," +
-                 "time VARCHAR(6)," +
+                 "time VARCHAR(8)," +  // Changed from VARCHAR(6) to VARCHAR(8) to accommodate HH:mm:ss format
                  "ip VARCHAR(15)," +
                  "message TEXT" +
                  ")";
@@ -64,7 +65,7 @@ void saveMessage(Connection conn, String date, String time, String ip, String me
     String sql = "INSERT INTO messages (date, time, ip, message) VALUES (?, ?, ?, ?)";
     try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
         pstmt.setString(1, date);
-        pstmt.setString(2, time);
+        pstmt.setString(2, eightToSixDigitTime(time)); // Convert to 6-digit before saving
         pstmt.setString(3, ip);
         pstmt.setString(4, message);
         pstmt.executeUpdate();
@@ -78,20 +79,40 @@ List<String> getAllMessages(Connection conn) throws SQLException {
     try (Statement stmt = conn.createStatement();
          ResultSet rs = stmt.executeQuery(sql)) {
         while (rs.next()) {
-            String formattedMessage = String.format("[%s] %s: %s",
-                formatTime(rs.getString("time")),
-                rs.getString("ip"), rs.getString("message"));
+            String date = rs.getString("date");
+            String time = sixToEightDigitTime(rs.getString("time")); // Convert to 8-digit after retrieval
+            String ip = rs.getString("ip");
+            String message = rs.getString("message");
+            String formattedMessage = formatMessage(time, ip, message);
             messages.add(formattedMessage);
         }
     }
     return messages;
+}
+
+// Modified formatMessage function
+public String formatMessage(String time, String ip, String message) {
+    return String.format("[%s][%s]: %s", time, ip, message);
+}
+
+// Convert 6-digit time to 8-digit time
+String sixToEightDigitTime(String sixDigitTime) {
+    if (sixDigitTime == null || sixDigitTime.length() != 6) {
+        return sixDigitTime; // Return as-is if not in expected format
+    }
+    return sixDigitTime.substring(0, 2) + ":" + sixDigitTime.substring(2, 4) + ":" + sixDigitTime.substring(4);
+}
+
+// Convert 8-digit time to 6-digit time
+String eightToSixDigitTime(String eightDigitTime) {
+    return eightDigitTime.replace(":", "");
 }
 %>
 
 <%
 request.setCharacterEncoding("UTF-8");
 System.out.println("JSP is executing!");
-java.util.Date now = new java.util.Date();
+Date now = new Date();
 
 Connection conn = null;
 List<String> messages = new ArrayList<>();
@@ -102,14 +123,26 @@ try {
     
     createTableIfNotExists(conn);
     
+    // 处理新消息
     String newMessage = request.getParameter("message");
+    String userIp = getUserIp(request);
+
     if (newMessage != null && !newMessage.trim().isEmpty()) {
-        String userIp = getUserIp(request);
-        String formattedMessage = String.format("[%s] %s: %s", formatDate(new Date()), userIp, newMessage);
-        messages.add(formattedMessage);
-        application.setAttribute("chatMessages", messages);
-    } catch (Exception e) {
-        System.err.println("Error processing message: " + e.getMessage());
+        String currentDate = formatDate(now);
+        String currentTime = formatTime(now); // This will now return HH:mm:ss format
+        saveMessage(conn, currentDate, currentTime, userIp, newMessage);
+    }
+    
+    messages = getAllMessages(conn);
+} catch(SQLException se) {
+    se.printStackTrace();
+} catch(Exception e) {
+    e.printStackTrace();
+} finally {
+    try {
+        if(conn != null) conn.close();
+    } catch(SQLException se) {
+        se.printStackTrace();
     }
 }
 %>
@@ -215,4 +248,3 @@ try {
     </div>
 </body>
 </html>
-
